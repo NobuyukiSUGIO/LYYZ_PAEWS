@@ -1,0 +1,36 @@
+PAEWS cryptanalysis benchmark / herumi mcl / BLS12-381 (Type-3)
+n=8  runs=10000  warmup=50  validation=10000  pool=16
+mcl init + Setup + initial sender/receiver KeyGen: 2.16404 ms (one-time; not in attack timings)
+Hardware concurrency: 16
+Important: t=1 excluded (negligible-probability degeneration); r'=0 not excluded by the algorithm.
+
+=== Independent fresh-randomness validation ===
+Honest Test and negative control: 10000/10000
+CI attack (1 legal TD query):    10000/10000
+TI attack (1 legal Enc query):   10000/10000
+TI public equality (0 queries): 10000/10000
+Universal token (all matches): 10000/10000
+measuring Enc (n characters) ...
+measuring Trapdoor (ell=1) ...
+measuring Test (ell=1; 3 pairings) ...
+measuring Shift only (3 G2 mul) ...
+measuring CI: Shift+Test ...
+measuring CI: oracle TD+Shift+Test ...
+measuring TI: Shift+Test ...
+measuring TI: oracle Enc+Shift+Test ...
+measuring TI public: E1==E2 ...
+
+=== Average cost over 10000 timed samples per operation ===
+Operation                          mean (us)   median (us)      p95 (us)   stddev (us)
+Enc (n characters)                   930.261       930.371       940.330         6.971
+Trapdoor (ell=1)                     432.265       431.022       445.839         7.536
+Test (ell=1; 3 pairings)            1427.541      1425.483      1439.919         6.597
+Shift only (3 G2 mul)                272.200       273.054       279.376         5.255
+CI: Shift+Test                      1694.653      1692.776      1708.245         6.013
+CI: oracle TD+Shift+Test            2132.487      2125.755      2185.206        24.838
+TI: Shift+Test                      1738.643      1742.645      1764.857        66.138
+TI: oracle Enc+Shift+Test           2706.002      2703.892      2725.523        30.461
+TI public: E1==E2                      0.446         0.445         0.455         0.005
+Saved CSV: paews_bls12_381_validate10000.csv
+
+All tests completed; optimizer sink=2723550

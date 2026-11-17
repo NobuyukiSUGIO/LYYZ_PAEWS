@@ -1,0 +1,9 @@
+# Build output
+/paews_mcl_bench
+*.o
+
+# Outputs of `make quick`, `make bench`, and run_benchmark.sh (results/ holds the reported run)
+/quick.csv
+/paews_bls12_381_validate10000.csv
+/paews_run_validate10000.log
+/paews_environment.txt

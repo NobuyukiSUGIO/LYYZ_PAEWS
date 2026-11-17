@@ -1,0 +1,7 @@
+=== Machine ===
+Linux sugio-pc 6.8.0-137-generic #137-Ubuntu SMP PREEMPT_DYNAMIC Fri Jul 17 20:28:23 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+model name	: AMD Ryzen 7 5800X 8-Core Processor
+16
+8f64cb614aac536c928a2cf269c1688b2633e51d
+MCL_DIR=/home/sugio/Documents/PKC/mcl
