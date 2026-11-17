@@ -15,7 +15,7 @@ This code is for research and reproducibility only. It is **not** production cry
 | `paews_mcl_bench.cpp` | LYYZ scheme, validation of the CI/TI counterexamples, and timing benchmark |
 | `Makefile` | Build (`make`), quick check (`make quick`), full run with the reported settings (`make bench`) |
 | `run_benchmark.sh` | Records the environment, builds, and runs the full benchmark |
-| `results/` | The reported run: CSV of timing statistics, console log, and environment record |
+| `results/` | The reported run (CSV of timing statistics, console log, environment record) and the extended validation log |
 
 ## Requirements
 
@@ -60,14 +60,21 @@ The validation stage runs independent trials. Each trial samples a fresh public 
 3. The TI counterexample, using one encryption query permitted by Definition 6
 4. The TI counterexample that only compares two components of the challenge trapdoor (no query)
 5. Acceptance of the all-identity token obtained with trapdoor randomness 0
+6. Lemma 1 (shift identity) in general form: for a random number of specified positions ℓ ∈ [1, n], random characters, a random non-wrapping shift δ, and a random nonzero ρ, the shifted trapdoor equals the trapdoor of the shifted keyword with the same ρ component by component; as a negative control, it differs from the trapdoor of another keyword
+7. PEWS (Section IV of the paper): honest `Test` and a negative control
+8. The CI counterexample applied to PEWS
 
-The program aborts if any check fails.
+PEWS uses D_i = g1^{t^{x_i}} h_i^r and E_i = g2^{ρ t^{-y_i}} with the same T0, T1, T2, and `Test`, which are exactly the PAEWS algorithms with γ = 1; the program runs PEWS that way.
+
+The program aborts if any check fails. `--runs 0` runs only the validation and skips the timing benchmark.
 
 ## Reported results
 
 Environment: AMD Ryzen 7 5800X, Ubuntu 24.04 (Linux 6.8, native), g++ 13.3.0, `-O2 -DNDEBUG -std=c++17 -DMCL_FP_BIT=384 -DMCL_FR_BIT=256`, mcl `8f64cb61` (static), BLS12-381, n = 8.
 
-All five checks succeeded in **10,000/10,000** independent trials.
+Checks 1–5 and the timing statistics come from the run in `results/paews_run_validate10000.log`, made with the initial version of the program (commit `7649754`); later versions leave the timing code unchanged. All five checks succeeded in **10,000/10,000** independent trials.
+
+Checks 1–8 were run again with the current version in `results/paews_validation_extended_10000.log` (`--runs 0 --validate 10000`, same machine).
 
 Mean times over 10,000 timed samples (µs):
 

@@ -1,0 +1,17 @@
+PAEWS cryptanalysis benchmark / herumi mcl / BLS12-381 (Type-3)
+n=8  runs=0  warmup=50  validation=10000  pool=16
+mcl init + Setup + initial sender/receiver KeyGen: 2.14669 ms (one-time; not in attack timings)
+Hardware concurrency: 16
+Important: t=1 excluded (negligible-probability degeneration); r'=0 not excluded by the algorithm.
+
+=== Independent fresh-randomness validation ===
+Honest Test and negative control: 10000/10000
+CI attack (1 legal TD query):    10000/10000
+TI attack (1 legal Enc query):   10000/10000
+TI public equality (0 queries): 10000/10000
+Universal token (all matches): 10000/10000
+Lemma 1 (random ell, y, delta, rho): 10000/10000
+PEWS honest Test and negative control: 10000/10000
+PEWS CI attack (1 legal TD query): 10000/10000
+
+Timing skipped (--runs 0).

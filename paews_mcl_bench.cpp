@@ -26,6 +26,7 @@
 #include <iomanip>
 #include <iostream>
 #include <numeric>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -195,11 +196,12 @@ Ciphertext encrypt(const Params& pp, const Sender& skS,
 }
 
 // tk is the non-wildcard prefix; remaining positions are '*' (Section V).
-Token trapdoor(const Params& pp, const Sender& pkS,
-               const Receiver& skR, const std::vector<int>& tk)
+// The randomness rp (r' in [1], rho in the comment paper) is given explicitly
+// so that Lemma 1 can be checked with the same rho on both sides.
+Token trapdoor_with(const Params& pp, const Sender& pkS,
+                    const Receiver& skR, const std::vector<int>& tk, const Fr& rp)
 {
     require(!tk.empty() && tk.size() <= skR.alpha.size(), "bad token prefix length");
-    const Fr rp = random_fr();
     Fr alpha_sum(0), beta_sum(0);
     Token td;
     td.E.resize(tk.size());
@@ -214,6 +216,24 @@ Token trapdoor(const Params& pp, const Sender& pkS,
     td.T1 = scale_g2(pp.g2, rp * alpha_sum);
     td.T2 = scale_g2(pp.g2, rp * beta_sum);
     return td;
+}
+
+// Trapdoor algorithm of [1], Section V: fresh rp <- Z_q.
+Token trapdoor(const Params& pp, const Sender& pkS,
+               const Receiver& skR, const std::vector<int>& tk)
+{
+    return trapdoor_with(pp, pkS, skR, tk, random_fr());
+}
+
+// PEWS ([1], Section IV) has D_i = g1^{t^{x_i}} h_i^r and E_i = g2^{rho t^{-y_i}},
+// with T0, T1, T2, Test, and the receiver keys (t public) as in PAEWS.  These are
+// exactly the PAEWS algorithms above with gamma = 1, so PEWS is run through them.
+Sender pews_gamma_one(const Params& pp)
+{
+    Sender s;
+    s.gamma = Fr(1);
+    s.pk = pp.g2;
+    return s;
 }
 
 bool test(const Ciphertext& ct, const Token& td)
@@ -261,6 +281,40 @@ Token universal_token(const Params& pp)
     return td;
 }
 
+bool same_token(const Token& a, const Token& b)
+{
+    if (a.E.size() != b.E.size()) return false;
+    if (!(a.T0 == b.T0) || !(a.T1 == b.T1) || !(a.T2 == b.T2)) return false;
+    for (std::size_t i = 0; i < a.E.size(); i++) {
+        if (!(a.E[i] == b.E[i])) return false;
+    }
+    return true;
+}
+
+// Lemma 1 in general form: random ell in [1,n], characters y_i in [0,100],
+// non-wrapping delta in [-min y_i, 100], and rho != 0.  Checks
+// Shift_delta(Trapdoor(y; rho)) == Trapdoor(y + delta; rho) component-wise, and,
+// as a negative control, that it differs from the trapdoor of another keyword.
+bool check_lemma1(const Params& pp, const Sender& s, const Receiver& r,
+                  std::size_t n, std::mt19937_64& rng)
+{
+    std::uniform_int_distribution<std::size_t> length(1, n);
+    std::uniform_int_distribution<int> character(0, 100);
+    std::vector<int> y(length(rng));
+    for (int& c : y) c = character(rng);
+    const int y_min = *std::min_element(y.begin(), y.end());
+    std::uniform_int_distribution<int> shift(-y_min, 100);
+    const int delta = shift(rng);
+    std::vector<int> y_shifted(y);
+    for (int& c : y_shifted) c += delta;
+    std::vector<int> y_other(y_shifted);
+    y_other[0] += 1;
+    const Fr rho = random_fr(true);
+    const Token shifted = shift_token(pp, trapdoor_with(pp, s, r, y, rho), delta);
+    return same_token(shifted, trapdoor_with(pp, s, r, y_shifted, rho))
+        && !same_token(shifted, trapdoor_with(pp, s, r, y_other, rho));
+}
+
 std::vector<int> keyword(std::size_t n, int first, int second = 0)
 {
     std::vector<int> w(n, 0);
@@ -297,6 +351,9 @@ struct Validation {
     std::size_t ti = 0;
     std::size_t ti_public = 0;
     std::size_t universal = 0;
+    std::size_t lemma1 = 0;
+    std::size_t pews_honest = 0;
+    std::size_t pews_ci = 0;
     std::size_t nondegenerate_failures = 0;
 };
 
@@ -305,6 +362,7 @@ struct Validation {
 Validation validate(std::size_t n, std::size_t trials)
 {
     Validation v;
+    std::mt19937_64 rng(std::random_device{}());  // test-case choice only, not key material
     for (std::size_t i = 0; i < trials; i++) {
         const Params pp = setup();
         const Sender s = keygen_sender(pp);
@@ -324,13 +382,26 @@ Validation validate(std::size_t n, std::size_t trials)
                             && (x.td01.E[0] != x.td01.E[1]);
         const Token all = universal_token(pp);
         const bool universal = test(x.ct0, all) && test(x.ct1, all) && test(x.ct2, all);
+        const bool lemma1 = check_lemma1(pp, s, r, n, rng);
+        // PEWS: honest Test, then the same CI attack (legal TD(2) -> Shift(-2) -> TD(0)).
+        const Sender pews = pews_gamma_one(pp);
+        const Ciphertext pews_ct0 = encrypt(pp, pews, r, keyword(n, 0));
+        const Ciphertext pews_ct1 = encrypt(pp, pews, r, keyword(n, 1));
+        const Token pews_td0 = trapdoor(pp, pews, r, {0});
+        const bool pews_honest = test(pews_ct0, pews_td0) && !test(pews_ct1, pews_td0);
+        const Token pews_ci_td = shift_token(pp, trapdoor(pp, pews, r, {2}), -2);
+        const bool pews_ci = test(pews_ct0, pews_ci_td) && !test(pews_ct1, pews_ci_td);
         v.count++;
+        v.lemma1 += lemma1 ? 1 : 0;
+        v.pews_honest += pews_honest ? 1 : 0;
+        v.pews_ci += pews_ci ? 1 : 0;
         v.honest += honest ? 1 : 0;
         v.ci += ci ? 1 : 0;
         v.ti += ti ? 1 : 0;
         v.ti_public += ti_public ? 1 : 0;
         v.universal += universal ? 1 : 0;
-        if (!honest || !ci || !ti || !ti_public || !universal) {
+        if (!honest || !ci || !ti || !ti_public || !universal
+            || !lemma1 || !pews_honest || !pews_ci) {
             v.nondegenerate_failures++;
         }
     }
@@ -404,7 +475,7 @@ Options parse_options(int argc, char** argv)
         else throw std::runtime_error("unknown option: " + arg);
     }
     require(o.n >= 2 && o.n <= 512, "--n must be in [2,512]");
-    require(o.runs >= 1 && o.runs <= 1000000, "invalid --runs");
+    require(o.runs <= 1000000, "invalid --runs (0 = validation only)");
     require(o.pool >= 1 && o.pool <= 4096, "invalid --pool");
     return o;
 }
@@ -468,10 +539,18 @@ try {
               << "CI attack (1 legal TD query):    " << v.ci << '/' << v.count << "\n"
               << "TI attack (1 legal Enc query):   " << v.ti << '/' << v.count << "\n"
               << "TI public equality (0 queries): " << v.ti_public << '/' << v.count << "\n"
-              << "Universal token (all matches): " << v.universal << '/' << v.count << "\n";
+              << "Universal token (all matches): " << v.universal << '/' << v.count << "\n"
+              << "Lemma 1 (random ell, y, delta, rho): " << v.lemma1 << '/' << v.count << "\n"
+              << "PEWS honest Test and negative control: " << v.pews_honest << '/' << v.count << "\n"
+              << "PEWS CI attack (1 legal TD query): " << v.pews_ci << '/' << v.count << "\n";
     require(v.honest == v.count && v.ci == v.count && v.ti == v.count
-            && v.ti_public == v.count && v.universal == v.count,
+            && v.ti_public == v.count && v.universal == v.count
+            && v.lemma1 == v.count && v.pews_honest == v.count && v.pews_ci == v.count,
             "validation failed (check t, r' degeneracy or implementation)");
+    if (o.runs == 0) {
+        std::cout << "\nTiming skipped (--runs 0).\n";
+        return 0;
+    }
 
     std::vector<Sample> pool;
     pool.reserve(o.pool);
