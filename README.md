@@ -1,4 +1,4 @@
-# PAEWS_LYYZ
+# LYYZ_PAEWS
 
 Implementation and experimental results for an analysis of the PAEWS scheme of
 
